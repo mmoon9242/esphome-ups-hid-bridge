@@ -1,3 +1,4 @@
+// Modified 2026-10-10 by mmoon9242: preserve 16-bit battery voltage report values.
 #include "protocol_cyberpower.h"
 #include "ups_hid.h"
 #include "constants_hid.h"

@@ -1,3 +1,4 @@
+// Modified 2026-10-10 by mmoon9242: GET DESC handler declaration.
 #pragma once
 
 #include "esphome/core/component.h"

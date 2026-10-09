@@ -1,3 +1,4 @@
+// Modified 2026-10-10 by mmoon9242: NUT client timeout and GET DESC compatibility.
 #include "nut_server.h"
 #include "../ups_hid/ups_hid.h"
 #include "esphome/core/log.h"

@@ -1,6 +1,65 @@
+# ESPHome UPS HID Bridge
+
+A fork of [bullshit/esphome-components](https://github.com/bullshit/esphome-components), preserving the original project history and license. This fork adds focused NUT interoperability and CyberPower voltage fixes for ESP32-S3.
+
+See [changes and validation](docs/fork-changes.md). The original project documentation follows below.
+
+---
+
 # ESPHome Components Collection
 
 A collection of ESPHome components for various hardware integrations and monitoring solutions.
+
+## Compatibility Fixes: WinNUT GET DESC, CyberPower Battery Voltage, and NUT Connections
+
+This fork preserves the original [bullshit/esphome-components](https://github.com/bullshit/esphome-components) project history and LICENSE. The changes below were made by mmoon9242 on October 10, 2026, based on upstream commit `39fe49e`. They address three independent issues in the ESPHome USB HID UPS bridge for ESP32-S3.
+
+### WinNUT: ERR INVALID-ARGUMENT on GET DESC
+
+**Symptom:** WinNUT can display live UPS values but reports an error when requesting variable descriptions, for example:
+
+```text
+GET DESC CyberPower1500VA ups.mfr
+ERR INVALID-ARGUMENT
+```
+
+**Cause:** The NUT server dispatched `GET VAR` but did not implement the standard `GET DESC` subcommand. Updating an older WinNUT client resolved a separate client-version interoperability problem, but description requests still exposed this missing server feature.
+
+**Fix:** Add authenticated `GET DESC` handling with argument, UPS-name, and variable validation. Common variables have human-readable descriptions; other supported variables return `Unavailable`, as permitted by the [NUT network protocol](https://networkupstools.org/docs/developer-guide.chunked/ar01s09.html). A successful response now looks like:
+
+```text
+DESC CyberPower1500VA ups.mfr "UPS manufacturer"
+```
+
+### CyberPower CP1500PFCLCDa TW: Battery Voltage Shows 1.9 V Instead of 27.5 V
+
+**Symptom:** Both ESPHome and NUT reported `battery.voltage` as 1.9 V, while `battery.voltage.nominal` was 24.0 V.
+
+**Cause:** The CyberPower parser read only the low byte of the voltage payload. On the tested device, HID report `0x0A` contained a 16-bit little-endian decivolt value, `0x0113` (275). Truncating it to `0x13` (19), then dividing by 10, produced the incorrect 1.9 V.
+
+**Fix:** Preserve the high byte when the report includes it, and retain the existing two-byte report path. Apply the same decoding to nominal battery voltage. The tested device now reports 27.5 V from `0x0113`, and nominal voltage remains 24.0 V from `0x00F0`.
+
+These are UPS-reported values, not independent electrical measurements. Report width is currently inferred from payload length; descriptor-driven decoding and validation on additional CyberPower models remain future work.
+
+### NUT Server: Active Connections Can Be Incorrectly Timed Out
+
+**Symptom:** Active NUT connections could disconnect during concurrent read-only client testing.
+
+**Cause:** Cleanup sampled `millis()` before acquiring the client mutex. Another task could update `last_activity` to a later timestamp before cleanup acquired the lock. Unsigned `now - last_activity` then underflowed, making a recent connection appear to have exceeded the timeout.
+
+**Fix:** Sample the clock after acquiring `clients_mutex_`, keeping the timeout comparison consistent with the protected client timestamps.
+
+### Validation and Scope
+
+- Hardware: ESP32-S3-WROOM-1-N16R8 and CyberPower CP1500PFCLCDa TW.
+- Build environment: ESPHome 2025.7.5, ESP-IDF 5.4.2, and pioarduino 54.03.21.
+- Deployed firmware verified corrected battery values, successful `GET DESC` responses, and error responses for invalid arguments, unknown UPS names, and unsupported variables.
+- The timeout fix was exercised with 10 active NUT connections and 150 subsequent read-only queries. This used a deployment-specific client/socket configuration; the repository defaults were not increased.
+- No UPS shutdown, discharge, battery self-test, or control tests were performed. Home Assistant NUT and TrueNAS end-to-end integration are not claimed as verified.
+
+For reproducible read-only checks and limitations, see [fork changes and validation](docs/fork-changes.md). Each source fix has its own Git commit to make upstream review and reuse straightforward.
+
+---
 
 ## Available Components
 
