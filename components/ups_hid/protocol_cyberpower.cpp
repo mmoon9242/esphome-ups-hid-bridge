@@ -332,13 +332,15 @@ void CyberPowerProtocol::parse_battery_voltage_report(const HidReport &report, U
     return;
   }
 
-  // NUT debug shows: Report 0x0a, Offset 0, Size 8, Value: 24
-  // Current raw value: 0xF0 (240) should become 24V
-  // So scaling factor is 24/240 = 0.1 (divide by 10)
-  uint8_t voltage_raw = report.data[1];
+  // Battery voltage reports encode decivolts; report width varies by model.
+  // Preserve both bytes of little-endian decivolt reports on 16-bit models.
+  uint16_t voltage_raw = report.data[1];
+  if (report.data.size() >= 3) {
+    voltage_raw |= static_cast<uint16_t>(report.data[2]) << 8;
+  }
   data.battery.voltage = static_cast<float>(voltage_raw) / battery::VOLTAGE_SCALE_FACTOR; // Scale by 0.1
   
-  ESP_LOGD(CP_TAG, "Battery voltage: %.1fV (raw: 0x%02X = %d)", 
+  ESP_LOGD(CP_TAG, "Battery voltage: %.1fV (raw: 0x%04X = %u)",
            data.battery.voltage, voltage_raw, voltage_raw);
 }
 
@@ -471,10 +473,14 @@ void CyberPowerProtocol::parse_battery_voltage_nominal_report(const HidReport &r
 
   // NUT debug shows: Report 0x09, Value: 24 (ConfigVoltage)
   // Some CyberPower models report in decivolts (240 = 24.0V)
-  uint8_t voltage_raw = report.data[1];
+  // Preserve both bytes of little-endian decivolt reports on 16-bit models.
+  uint16_t voltage_raw = report.data[1];
+  if (report.data.size() >= 3) {
+    voltage_raw |= static_cast<uint16_t>(report.data[2]) << 8;
+  }
   data.battery.voltage_nominal = static_cast<float>(voltage_raw) / battery::VOLTAGE_SCALE_FACTOR;
   
-  ESP_LOGD(CP_TAG, "Battery voltage nominal: %.0fV (raw: 0x%02X = %d)", 
+  ESP_LOGD(CP_TAG, "Battery voltage nominal: %.0fV (raw: 0x%04X = %u)",
            data.battery.voltage_nominal, voltage_raw, voltage_raw);
 }
 
