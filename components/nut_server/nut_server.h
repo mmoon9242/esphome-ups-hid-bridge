@@ -109,6 +109,7 @@ protected:
   void handle_list_ups(NutClient &client);
   void handle_list_var(NutClient &client, const std::string &args);
   void handle_get_var(NutClient &client, const std::string &args);
+  void handle_get_desc(NutClient &client, const std::string &args);
   void handle_list_cmd(NutClient &client, const std::string &args);
   void handle_list_clients(NutClient &client);
   void handle_instcmd(NutClient &client, const std::string &args);

@@ -364,6 +364,8 @@ void NutServerComponent::process_command(NutClient &client, const std::string &c
       
       if (subcmd == "VAR") {
         handle_get_var(client, subargs);
+      } else if (subcmd == "DESC") {
+        handle_get_desc(client, subargs);
       } else {
         send_error(client, "INVALID-ARGUMENT");
       }
@@ -507,6 +509,32 @@ void NutServerComponent::handle_get_var(NutClient &client, const std::string &ar
   } else {
     send_error(client, "VAR-NOT-SUPPORTED");
   }
+}
+
+void NutServerComponent::handle_get_desc(NutClient &client, const std::string &args) {
+  auto parts = split_args(args);
+  if (parts.size() != 2) {
+    send_error(client, "INVALID-ARGUMENT");
+    return;
+  }
+  if (parts[0] != get_ups_name()) {
+    send_error(client, "UNKNOWN-UPS");
+    return;
+  }
+  if (get_ups_var(parts[1]).empty()) {
+    send_error(client, "VAR-NOT-SUPPORTED");
+    return;
+  }
+  const char *description = "Unavailable";
+  if (parts[1] == "ups.mfr") description = "UPS manufacturer";
+  else if (parts[1] == "ups.model") description = "UPS model";
+  else if (parts[1] == "ups.serial") description = "UPS serial number";
+  else if (parts[1] == "ups.status") description = "UPS status";
+  else if (parts[1] == "battery.voltage") description = "Battery voltage (V)";
+  else if (parts[1] == "battery.voltage.nominal") description = "Nominal battery voltage (V)";
+  else if (parts[1] == "battery.charge") description = "Battery charge (%)";
+  else if (parts[1] == "battery.runtime") description = "Remaining battery runtime (seconds)";
+  send_response(client, "DESC " + get_ups_name() + " " + parts[1] + " \"" + description + "\"\n");
 }
 
 void NutServerComponent::handle_list_cmd(NutClient &client, const std::string &args) {
