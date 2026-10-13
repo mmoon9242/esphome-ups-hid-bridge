@@ -1,4 +1,4 @@
-// Modified 2026-10-10 by mmoon9242: NUT client timeout and GET DESC compatibility.
+// Modified 2026-10-10 and 2026-10-13 by mmoon9242: NUT compatibility and anonymous read access.
 #include "nut_server.h"
 #include "../ups_hid/ups_hid.h"
 #include "esphome/core/log.h"
@@ -295,11 +295,21 @@ void NutServerComponent::process_command(NutClient &client, const std::string &c
   std::string args = (space_pos != std::string::npos) ? 
                       command.substr(space_pos + 1) : "";
   
-  // Debug: Log all received commands
-  ESP_LOGD(TAG, "Received command: '%s' args: '%s'", cmd.c_str(), args.c_str());
-  
   // Convert command to uppercase for comparison
   std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::toupper);
+
+  // Only implemented read operations bypass authentication. New commands are
+  // protected by default, and LIST CMD merely lists commands without executing.
+  size_t sub_pos = args.find(' ');
+  std::string subcmd = args.substr(0, sub_pos);
+  std::transform(subcmd.begin(), subcmd.end(), subcmd.begin(), ::toupper);
+  const bool read_only =
+      (cmd == "LIST" && (subcmd == "UPS" || subcmd == "VAR" ||
+                         subcmd == "CMD" || subcmd == "RW" ||
+                         subcmd == "ENUM" || subcmd == "RANGE")) ||
+      (cmd == "GET" && (subcmd == "VAR" || subcmd == "DESC"));
+  // Never log credentials from PASSWORD or the legacy LOGIN user/password form.
+  ESP_LOGD(TAG, "Received command: '%s'", cmd.c_str());
   
   // Commands that don't require authentication
   if (cmd == "HELP") {
@@ -321,11 +331,12 @@ void NutServerComponent::process_command(NutClient &client, const std::string &c
   } else if (cmd == "UPSDVER") {
     handle_upsdver(client);
   }
-  // Commands requiring authentication
-  else if (!password_.empty() && !client.is_authenticated()) {
+  // Other commands require an authenticated configured account, even when
+  // no password is configured. Anonymous reads never change client state.
+  else if (!read_only && (!client.is_authenticated() || password_.empty())) {
     send_error(client, "ACCESS-DENIED");
   } else {
-    // Authenticated commands
+    // Public read operations and authenticated protected operations
     if (cmd == "LIST") {
       // Parse LIST subcommand
       size_t sub_pos = args.find(' ');
@@ -642,6 +653,10 @@ void NutServerComponent::handle_username(NutClient &client, const std::string &a
     return;
   }
   
+  // Starting a new authentication attempt revokes any previous identity.
+  client.state = ClientState::CONNECTED;
+  client.username.clear();
+  client.temp_password.clear();
   client.temp_username = args;
   ESP_LOGD(TAG, "Received username: %s", args.c_str());
   send_response(client, "OK\n");
@@ -774,8 +789,9 @@ bool NutServerComponent::send_error(NutClient &client, const std::string &error)
 
 bool NutServerComponent::authenticate(const std::string &username, const std::string &password) {
   if (password_.empty()) {
-    // No authentication required
-    return true;
+    // Without a configured password, read access remains available but no
+    // client can gain control privileges.
+    return false;
   }
   return (username == username_ && password == password_);
 }

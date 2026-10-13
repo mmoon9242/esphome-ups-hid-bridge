@@ -10,6 +10,39 @@ See [changes and validation](docs/fork-changes.md). The original project documen
 
 A collection of ESPHome components for various hardware integrations and monitoring solutions.
 
+## Anonymous Read-Only NUT Access for TrueNAS Netdata and upsc
+
+Added on October 13, 2026. ESP32 firmware 1.1.6 was compiled and deployed successfully on the tested device.
+
+**Problem:** The server previously rejected unauthenticated `LIST UPS`, `LIST VAR`, and `GET VAR` with `ERR ACCESS-DENIED` whenever a NUT password was configured. This prevented anonymous UPS discovery and polling by clients such as `upsc` and TrueNAS Netdata. The rejection was reproduced against the running firmware; the complete TrueNAS Netdata integration was not tested here.
+
+**Change:** An explicit allowlist permits anonymous `LIST UPS/VAR/CMD/RW/ENUM/RANGE` and `GET VAR/DESC`. Listing commands does not execute them. Anonymous reads do not authenticate the connection or grant control rights. Other operations remain protected by default, including client-list queries.
+
+**Authentication and controls:** Existing `USERNAME`, `PASSWORD`, and `LOGIN` remain supported for NUT monitoring clients. `FSD`, `INSTCMD`, and `SET` require the existing configured account to authenticate. Starting a new username/password attempt clears the previous authenticated identity. Without a configured password, reads still work but control privileges cannot be obtained. No new user-role system is introduced; authenticated permissions retain the existing single-account model. The pre-existing FSD handler only acknowledges its request, and SET remains unsupported.
+
+After upgrading, these read-only commands no longer require credentials:
+
+```sh
+upsc -l DEVICE_IP:3493
+upsc CyberPower1500VA@DEVICE_IP:3493
+```
+
+**Validation:** Live TCP protocol tests passed anonymous discovery, all 16 advertised variable reads, descriptions, denial of anonymous FSD/INSTCMD/SET, existing username/password/login, and control denial after failed reauthentication. Control dispatch after successful authentication was checked using an unknown UPS and unsupported SET; no effective UPS control or shutdown command was executed. Encrypted ESPHome Native API reconnection and runtime version 1.1.6 were verified. The actual `upsc` executable was not available in the Windows build environment, so its discovery/read protocol exchanges were tested directly; run the commands above on your NUT client to verify its integration.
+
+Reproduce the regression checks without installing Python packages:
+
+```sh
+# Anonymous discovery, reads, and control denial
+python tools/test_nut_anonymous.py --host DEVICE_IP --ups CyberPower1500VA
+
+# Also verify the existing login and failed reauthentication paths
+python tools/test_nut_anonymous.py --host DEVICE_IP --ups CyberPower1500VA --username NUT_USER
+```
+
+The second command prompts for the password. Use this anonymous data endpoint on a trusted network; control commands still require authentication.
+
+---
+
 ## Compatibility Fixes: WinNUT GET DESC, CyberPower Battery Voltage, and NUT Connections
 
 This fork preserves the original [bullshit/esphome-components](https://github.com/bullshit/esphome-components) project history and LICENSE. The changes below were made by mmoon9242 on October 10, 2026, based on upstream commit `39fe49e`. They address three independent issues in the ESPHome USB HID UPS bridge for ESP32-S3.

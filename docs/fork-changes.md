@@ -42,3 +42,11 @@ The tool prompts for the password without echoing it. It checks all advertised v
 Use upstream YAML examples with your own ignored secrets.yaml. The hardware validation used ESPHome 2025.7.5, ESP-IDF 5.4.2 and pioarduino 54.03.21. This is a tested combination, not a claim that newer versions are incompatible.
 
 The repository does not include private credentials, network addresses, MAC addresses, device logs, build environments or firmware binaries. A 10-client limit is a deployment choice, not a changed default; configure max_clients and the ESP-IDF socket budget in your own YAML when needed.
+
+## October 13, 2026: anonymous read-only access
+
+Firmware 1.1.6 adds an explicit allowlist for anonymous LIST UPS/VAR/CMD/RW/ENUM/RANGE and GET VAR/DESC. Control operations retain authentication through the existing configured account; no-password configurations cannot grant control access. New authentication attempts revoke the old identity. Credential arguments are no longer written to command debug logs.
+
+The old deployed firmware failed the new anonymous regression test with ACCESS-DENIED; after successful compilation and OTA, both live access-isolation tests passed. They cover anonymous reads and control denial, existing login, authenticated protected-handler dispatch using harmless invalid/unsupported requests, and failed reauthentication. No effective UPS control was performed. Encrypted Native API reconnection confirmed runtime 1.1.6. Actual upsc and end-to-end TrueNAS integration remain client-side follow-up checks.
+
+Run tools/test_nut_anonymous.py as shown in the README. Tests need only Python's standard library.
