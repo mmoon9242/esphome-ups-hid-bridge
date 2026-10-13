@@ -1,16 +1,18 @@
 # ESPHome UPS HID Bridge
 
-A fork of [bullshit/esphome-components](https://github.com/bullshit/esphome-components), preserving the original project history and license. This fork adds focused NUT interoperability and CyberPower voltage fixes for ESP32-S3.
-
-See [changes and validation](docs/fork-changes.md). The original project documentation follows below.
-
----
-
-# ESPHome Components Collection
+**Fork of [bullshit/esphome-components](https://github.com/bullshit/esphome-components).** This project preserves the upstream Git history, author attribution, and [LICENSE](LICENSE), and adds focused USB HID UPS and NUT compatibility fixes for ESP32-S3.
 
 A collection of ESPHome components for various hardware integrations and monitoring solutions.
 
-## Anonymous Read-Only NUT Access for TrueNAS Netdata and upsc
+## Fixes in This Fork
+
+- **Anonymous NUT reads:** Allow `upsc` and TrueNAS Netdata discovery/polling without credentials while keeping control commands authenticated; WinNUT product-summary fields also display correctly after the update.
+- **WinNUT variable descriptions:** Implement `GET DESC` to resolve `ERR INVALID-ARGUMENT` when requesting field descriptions.
+- **CyberPower battery voltage:** Preserve the high byte of 16-bit reports; the tested CP1500PFCLCDa TW now reports 27.5 V instead of the truncated 1.9 V.
+- **NUT connection timeout:** Prevent unsigned time subtraction from incorrectly disconnecting active clients.
+
+<details>
+<summary>Anonymous read-only access: cause, permissions, commands, and tests</summary>
 
 Added on October 13, 2026. ESP32 firmware 1.1.6 was compiled and deployed successfully on the tested device.
 
@@ -27,6 +29,8 @@ upsc -l DEVICE_IP:3493
 upsc CyberPower1500VA@DEVICE_IP:3493
 ```
 
+**WinNUT result:** After the anonymous read-only update, the user also confirmed that the main-window manufacturer, model, serial number, and firmware fields display correctly instead of `Unknown`. The exact connection/authentication timing has not been traced.
+
 **Validation:** Live TCP protocol tests passed anonymous discovery, all 16 advertised variable reads, descriptions, denial of anonymous FSD/INSTCMD/SET, existing username/password/login, and control denial after failed reauthentication. Control dispatch after successful authentication was checked using an unknown UPS and unsupported SET; no effective UPS control or shutdown command was executed. Encrypted ESPHome Native API reconnection and runtime version 1.1.6 were verified. The actual `upsc` executable was not available in the Windows build environment, so its discovery/read protocol exchanges were tested directly; run the commands above on your NUT client to verify its integration.
 
 Reproduce the regression checks without installing Python packages:
@@ -41,9 +45,10 @@ python tools/test_nut_anonymous.py --host DEVICE_IP --ups CyberPower1500VA --use
 
 The second command prompts for the password. Use this anonymous data endpoint on a trusted network; control commands still require authentication.
 
----
+</details>
 
-## Compatibility Fixes: WinNUT GET DESC, CyberPower Battery Voltage, and NUT Connections
+<details>
+<summary>WinNUT, CyberPower voltage, and connection fixes: causes and validation</summary>
 
 This fork preserves the original [bullshit/esphome-components](https://github.com/bullshit/esphome-components) project history and LICENSE. The changes below were made by mmoon9242 on October 10, 2026, based on upstream commit `39fe49e`. They address three independent issues in the ESPHome USB HID UPS bridge for ESP32-S3.
 
@@ -91,6 +96,10 @@ These are UPS-reported values, not independent electrical measurements. Report w
 - No UPS shutdown, discharge, battery self-test, or control tests were performed. Home Assistant NUT and TrueNAS end-to-end integration are not claimed as verified.
 
 For reproducible read-only checks and limitations, see [fork changes and validation](docs/fork-changes.md). Each source fix has its own Git commit to make upstream review and reuse straightforward.
+
+</details>
+
+See [changes and validation](docs/fork-changes.md) for the development record. The original component documentation follows below.
 
 ---
 
